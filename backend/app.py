@@ -712,6 +712,8 @@ def internal_error(e):
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Download YAMNet synchronously before starting (Railway has no persistent disk)
+    ensure_yamnet()
     # Pre-load YAMNet in background — first request will be instant
     threading.Thread(target=warm_up_yamnet, daemon=True).start()
     port = int(os.getenv("PORT", 5000))
