@@ -206,6 +206,22 @@ YAMNET_SR    = 16000
 YAMNET_FRAME = 15600          # exactly 0.975 s at 16 kHz — fixed by model
 YAMNET_PATH  = Path(__file__).parent / "yamnet.tflite"
 
+# Auto-download yamnet.tflite if missing (needed on Railway / cloud deploys)
+YAMNET_URL = "https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/audio_classification/android/lite-model_yamnet_classification_tflite_1.tflite"
+
+def ensure_yamnet():
+    if YAMNET_PATH.exists():
+        return
+    logger.info("yamnet.tflite not found — downloading from Google...")
+    try:
+        import urllib.request
+        urllib.request.urlretrieve(YAMNET_URL, str(YAMNET_PATH))
+        logger.info("yamnet.tflite downloaded (%.1f MB)", YAMNET_PATH.stat().st_size / 1e6)
+    except Exception as e:
+        logger.error("Failed to download yamnet.tflite: %s", e)
+
+ensure_yamnet()
+
 CAT_IDS      = {76, 78, 80, 104}   # Cat, Meow, Caterwaul, Roaring cats
 DOG_IDS      = {69, 70, 75, 117}   # Dog, Bark, Whimper, Canidae
 SILENCE_IDS  = {494, 0}            # Silence, Speech

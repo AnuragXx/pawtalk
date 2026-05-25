@@ -1,7 +1,7 @@
 ﻿// ─── Backend URL ─────────────────────────────────────────────────────────────
 // LOCAL (same WiFi only):  "http://10.142.224.99:5000"
 // CLOUD (works everywhere): replace with your Railway URL after deploying
-const BACKEND_URL = "http://192.168.29.82:5000";
+const BACKEND_URL = "https://backend-production-d81f.up.railway.app";
 
 const SPECIES_CONFIG = {
   cat: { emoji: "🐱", color: "#e64980", label: "Cat Detected" },

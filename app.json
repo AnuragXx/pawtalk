@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./src/assets/images/logo.png",
+    "owner": "anuragxx",
     "splash": {
       "image": "./src/assets/images/logo.png",
       "resizeMode": "contain",
@@ -13,13 +14,23 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
+      "package": "com.anuragxx.pawtalk",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/images/logo.png",
         "backgroundColor": "#fff1f1"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.anuragxx.pawtalk"
     },
     "plugins": [
       "expo-font",
@@ -34,6 +45,11 @@
           "sounds": []
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0a8eb42b-1334-4ed8-9251-04adb9254647"
+      }
+    }
   }
 }
