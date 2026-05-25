@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+
+# Secrets — never commit these
+.env
+serviceAccountKey.json
+
+# Python installation files (bundled with repo, not needed in deploy)
+DLLs/
+Doc/
+include/
+Lib/
+libs/
+Scripts/
+tcl/
+Tools/
+Python/
+share/
+*.exe
+*.dll
+*.lnk
+*.old
+python*.zip
+LICENSE.txt
+NEWS.txt
+
+# Test/debug files
+test_*.py
+diagnose_*.py
+TROUBLESHOOTING.md
+HOW_TO_TEST_ML.md

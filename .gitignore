@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Environment variables — NEVER commit these
+.env
+*.env
+.env.local
+backend/.env
+
+# Firebase
+google-services.json
+GoogleService-Info.plist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/__pycache__/
+backend/*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+*.orig.*
+
+# Firebase service account key — never commit this
+backend/serviceAccountKey.json
+
+# ML model binaries — large files, download separately
+backend/*.pth
+backend/yamnet.tflite
+backend/yamnet_class_map.csv
+
+# Bundled Python runtime — not part of the project source
+Python 3.12/
+backend/Python 3.12/
+backend/Lib/
+backend/Scripts/
+backend/DLLs/
+backend/Doc/
+backend/include/
+
+# Python virtual environment
+backend/venv/
+
+# Expo helper script (local only)
+start_expo.ps1
+
+# Temporary / generated files
+backend/real_data/
+backend/__pycache__/
