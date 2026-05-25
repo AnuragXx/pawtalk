@@ -35,7 +35,7 @@
     "plugins": [
       "expo-font",
       "@react-native-community/datetimepicker",
-      "expo-audio",
+      "expo-av",
       "expo-web-browser",
       [
         "expo-notifications",

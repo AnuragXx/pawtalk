@@ -395,26 +395,45 @@ export default function SoundRecorderScreen({ navigation }) {
                   </View>
                 )}
 
-                {/* ── Behavior Detection Card ─────────────────────────────── */}
+                {/* ── Mood Card ──────────────────────────────────────────── */}
                 {!result.isMock && result.behavior && result.behavior !== "Unclear" && (
-                  <View style={[styles.behaviorCard, { borderColor: result.behaviorColor || "#e64980" }]}>
-                    <View style={styles.behaviorHeader}>
-                      <Text style={styles.behaviorEmoji}>{result.behaviorEmoji || "🐾"}</Text>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={styles.behaviorLabel}>Behavior Detected</Text>
-                        <Text style={[styles.behaviorName, { color: result.behaviorColor || "#e64980" }]}>
+                  <View style={[styles.moodCard, { backgroundColor: (result.behaviorColor || "#e64980") + "12", borderColor: result.behaviorColor || "#e64980" }]}>
+                    {/* Mood header */}
+                    <View style={styles.moodHeaderRow}>
+                      <View style={[styles.moodIconCircle, { backgroundColor: (result.behaviorColor || "#e64980") + "22" }]}>
+                        <Text style={styles.moodIconEmoji}>{result.behaviorEmoji || "🐾"}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={styles.moodSectionLabel}>Mood Detected</Text>
+                        <Text style={[styles.moodName, { color: result.behaviorColor || "#e64980" }]}>
                           {result.behavior}
                         </Text>
                       </View>
                       {result.behaviorConfidence > 0 && (
-                        <View style={[styles.behaviorBadge, { backgroundColor: (result.behaviorColor || "#e64980") + "22" }]}>
-                          <Text style={[styles.behaviorBadgeText, { color: result.behaviorColor || "#e64980" }]}>
+                        <View style={[styles.moodConfidenceBadge, { backgroundColor: (result.behaviorColor || "#e64980") + "22" }]}>
+                          <Text style={[styles.moodConfidenceText, { color: result.behaviorColor || "#e64980" }]}>
                             {result.behaviorConfidence}%
                           </Text>
                         </View>
                       )}
                     </View>
-                    <Text style={styles.behaviorDesc}>{result.behaviorDescription}</Text>
+                    {/* Mood description */}
+                    <Text style={styles.moodDescription}>{result.behaviorDescription}</Text>
+                    {/* Mood confidence bar */}
+                    {result.behaviorConfidence > 0 && (
+                      <View style={styles.moodBarRow}>
+                        <Text style={styles.moodBarLabel}>Confidence</Text>
+                        <View style={styles.moodBarBg}>
+                          <View style={[styles.moodBarFill, {
+                            width: `${result.behaviorConfidence}%`,
+                            backgroundColor: result.behaviorColor || "#e64980",
+                          }]} />
+                        </View>
+                        <Text style={[styles.moodBarPct, { color: result.behaviorColor || "#e64980" }]}>
+                          {result.behaviorConfidence}%
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
 
@@ -536,7 +555,7 @@ const styles = StyleSheet.create({
     fontSize: 15 * scaleX,
     color: "#fff"
   },
-  // Behavior detection card
+  // Behavior / Mood detection card
   behaviorCard: {
     width: "100%",
     backgroundColor: "#fafafa",
@@ -557,4 +576,42 @@ const styles = StyleSheet.create({
   behaviorBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   behaviorBadgeText: { fontFamily: "Poppins-Bold", fontSize: 11 * scaleX },
   behaviorDesc: { fontFamily: "Poppins-Regular", fontSize: 13 * scaleX, color: "#555", lineHeight: 19 },
+  // Mood card (prominent)
+  moodCard: {
+    width: "100%",
+    borderRadius: 18,
+    padding: 18 * scaleX,
+    marginBottom: 12,
+    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  moodHeaderRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  moodIconCircle: {
+    width: 56 * scaleX,
+    height: 56 * scaleX,
+    borderRadius: 28 * scaleX,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moodIconEmoji: { fontSize: 30 },
+  moodSectionLabel: { fontFamily: "Poppins-Regular", fontSize: 11 * scaleX, color: "#888", marginBottom: 2 },
+  moodName: { fontFamily: "Poppins-Bold", fontSize: 17 * scaleX },
+  moodConfidenceBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: "flex-start" },
+  moodConfidenceText: { fontFamily: "Poppins-Bold", fontSize: 12 * scaleX },
+  moodDescription: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 13 * scaleX,
+    color: "#444",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  moodBarRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  moodBarLabel: { fontFamily: "Poppins-Regular", fontSize: 11 * scaleX, color: "#888", width: 72 * scaleX },
+  moodBarBg: { flex: 1, height: 8, backgroundColor: "#e0e0e0", borderRadius: 4, overflow: "hidden" },
+  moodBarFill: { height: 8, borderRadius: 4 },
+  moodBarPct: { fontFamily: "Poppins-Bold", fontSize: 11 * scaleX, width: 36 * scaleX, textAlign: "right" },
 });

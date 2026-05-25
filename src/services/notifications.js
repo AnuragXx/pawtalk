@@ -10,7 +10,7 @@
  */
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { Audio } from 'expo-av';
 
 // Show notifications when app is in foreground (needed for background→foreground case)
 Notifications.setNotificationHandler({
@@ -52,19 +52,26 @@ export async function setupNotificationChannel() {
 }
 
 // ─── In-app alarm sound ───────────────────────────────────────────────────────
-let alarmPlayer = null;
+let alarmSound = null;
 
 export async function playAlarmSound() {
   try {
-    await setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
     });
-    alarmPlayer = createAudioPlayer(require('../assets/sounds/alarm.mp3'));
-    alarmPlayer.loop = true;
-    alarmPlayer.volume = 1.0;
-    alarmPlayer.play();
-    return alarmPlayer;
+    // Unload any previous instance first
+    if (alarmSound) {
+      try { await alarmSound.unloadAsync(); } catch (_) {}
+      alarmSound = null;
+    }
+    const { sound } = await Audio.Sound.createAsync(
+      require('../assets/sounds/alarm.mp3'),
+      { isLooping: true, volume: 1.0, shouldPlay: true }
+    );
+    alarmSound = sound;
+    return alarmSound;
   } catch (e) {
     console.warn('playAlarmSound failed:', e.message);
     return null;
@@ -73,10 +80,10 @@ export async function playAlarmSound() {
 
 export async function stopAlarmSound() {
   try {
-    if (alarmPlayer) {
-      alarmPlayer.pause();
-      alarmPlayer.remove();
-      alarmPlayer = null;
+    if (alarmSound) {
+      await alarmSound.stopAsync();
+      await alarmSound.unloadAsync();
+      alarmSound = null;
     }
   } catch (_) {}
 }

@@ -232,29 +232,34 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {recentActivity.length > 0 ? recentActivity.map((item, i) => (
-          <View key={item.id || `activity-${i}`} style={styles.activityCard}>
-            <View style={styles.activityIcon}>
-              <Icon type="mic" color="#e64980" size={20} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activityTitle}>
-                {item.species
-                  ? item.species.charAt(0).toUpperCase() + item.species.slice(1) + " sound analysis"
-                  : "Sound analysis"}
+        {recentActivity.length > 0 ? recentActivity.map((item, i) => {
+          const moodLabel = item.behavior || item.emotion || "Analysis complete";
+          const moodEmoji = item.behaviorEmoji || (item.species === "cat" ? "🐱" : "🐶");
+          const moodColor = item.behaviorColor || "#e64980";
+          return (
+            <View key={item.id || `activity-${i}`} style={styles.activityCard}>
+              <View style={[styles.activityIcon, { backgroundColor: moodColor + "22" }]}>
+                <Text style={{ fontSize: 22 }}>{moodEmoji}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activityTitle}>
+                  {item.species
+                    ? item.species.charAt(0).toUpperCase() + item.species.slice(1) + " sound analysis"
+                    : "Sound analysis"}
+                </Text>
+                <Text style={[styles.activitySub, { color: moodColor }]}>
+                  {moodLabel}
+                  {item.confidence ? ` · ${item.confidence}%` : ""}
+                </Text>
+              </View>
+              <Text style={styles.activityTime}>
+                {item.createdAt?.toDate
+                  ? item.createdAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  : "Recent"}
               </Text>
-              <Text style={styles.activitySub}>
-                {item.emotion || "Analysis complete"}
-                {item.confidence ? ` · ${item.confidence}%` : ""}
-              </Text>
             </View>
-            <Text style={styles.activityTime}>
-              {item.createdAt?.toDate
-                ? item.createdAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                : "Recent"}
-            </Text>
-          </View>
-        )) : (
+          );
+        }) : (
           <View style={styles.emptyActivity}>
             <Text style={styles.emptyActivityEmoji}>🎙️</Text>
             <Text style={styles.emptyActivityText}>No analyses yet — record your pet's sound to get started!</Text>

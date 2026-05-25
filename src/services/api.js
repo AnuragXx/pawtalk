@@ -1,7 +1,9 @@
 ﻿// ─── Backend URL ─────────────────────────────────────────────────────────────
 // LOCAL (same WiFi only):  "http://10.142.224.99:5000"
-// CLOUD (works everywhere): replace with your Railway URL after deploying
-const BACKEND_URL = "https://backend-production-d81f.up.railway.app";
+// CLOUD (works everywhere): set EXPO_PUBLIC_BACKEND_URL in .env, or falls back to Railway
+const BACKEND_URL =
+  process.env.EXPO_PUBLIC_BACKEND_URL ||
+  "https://backend-production-d81f.up.railway.app";
 
 const SPECIES_CONFIG = {
   cat: { emoji: "🐱", color: "#e64980", label: "Cat Detected" },
@@ -115,6 +117,15 @@ export const chatAPI = {
   sendMessage: async (message, petType, petBreed, history = []) => {
     try {
       if (!message || !message.trim()) return { success: true, reply: FALLBACK };
+
+      // Validate Groq key before attempting the request
+      if (!GROQ_KEY) {
+        console.warn("⚠️ EXPO_PUBLIC_GROQ_KEY is not set. Chatbot will not work.");
+        return {
+          success: false,
+          reply: "PoofieAI is not configured yet. Please add your Groq API key to the .env file.",
+        };
+      }
 
       var context = "";
       if (petType) context += "User has a " + petType;
