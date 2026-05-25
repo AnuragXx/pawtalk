@@ -74,7 +74,15 @@ def log_request():
 # ─── Health check ─────────────────────────────────────────────────────────────
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "PawTalk Backend", "model": "YAMNet"}), 200
+    interp_status = "loaded" if _interp is not None else "not_loaded"
+    yamnet_exists = YAMNET_PATH.exists()
+    return jsonify({
+        "status": "ok",
+        "service": "PawTalk Backend",
+        "model": "YAMNet",
+        "yamnet_file": str(yamnet_exists),
+        "interpreter": interp_status,
+    }), 200
 
 # ─── Checklist Routes ─────────────────────────────────────────────────────────
 
