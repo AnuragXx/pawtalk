@@ -432,7 +432,9 @@ _interp_lock = threading.Lock()
 
 
 def get_interpreter():
-    """Load TFLite interpreter once and cache it. Thread-safe."""
+    """Load TFLite interpreter once and cache it. Thread-safe.
+    Tries tflite-runtime first (lightweight), falls back to full TensorFlow.
+    """
     global _interp
     with _interp_lock:
         if _interp is not None:
@@ -441,12 +443,21 @@ def get_interpreter():
             logger.error("yamnet.tflite not found at %s", YAMNET_PATH)
             return None
         try:
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                import tensorflow as tf
+            # Try tflite-runtime first (10 MB, fast to install on Railway)
+            try:
+                import tflite_runtime.interpreter as tflite
+                interp = tflite.Interpreter(model_path=str(YAMNET_PATH))
+                logger.info("Using tflite-runtime interpreter")
+            except ImportError:
+                # Fall back to full TensorFlow
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    import tensorflow as tf
                 interp = tf.lite.Interpreter(model_path=str(YAMNET_PATH))
-                interp.allocate_tensors()
+                logger.info("Using tensorflow.lite interpreter")
+
+            interp.allocate_tensors()
             _interp = interp
             logger.info("YAMNet TFLite loaded — input=%s",
                         interp.get_input_details()[0]["shape"])
