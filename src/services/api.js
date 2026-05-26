@@ -3,7 +3,7 @@
 // CLOUD (works everywhere): set EXPO_PUBLIC_BACKEND_URL in .env, or falls back to Railway
 const BACKEND_URL =
   process.env.EXPO_PUBLIC_BACKEND_URL ||
-  "https://backend-production-d81f.up.railway.app";
+  "https://backend-v3-production-7ca9.up.railway.app";
 
 const SPECIES_CONFIG = {
   cat: { emoji: "🐱", color: "#e64980", label: "Cat Detected" },
