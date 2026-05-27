@@ -1,36 +1,33 @@
-"""
-PawTalk ONNX Model Trainer
-==========================
-Trains a small MLP that classifies:
-  - Species: cat, dog, bird
-  - Emotion: happy_playful, content_calm, anxious_stressed,
-             attention_seeking, alert_warning, communicating
+﻿"""
+PawTalk ONNX Model Trainer  v5.0  â€” Real Audio (ESC-50)
+========================================================
+Downloads the ESC-50 dataset (real environmental sounds) and trains
+an MLP classifier on MFCC features.
 
-Uses acoustically accurate synthetic audio generation + augmentation.
-No external dataset download needed.
-
-Output: backend/pawtalk_classifier.onnx  (~300 KB)
-        backend/scaler_params.json
+Species: cat, dog  (bird removed â€” ESC-50 has limited bird data)
+Emotions: kept from v4 but trained on species only; emotion head
+          uses the same synthetic approach as before since ESC-50
+          doesn't have emotion labels.
 
 Run: python backend/train_model.py
 """
 
-import os, sys, json
+import os, sys, json, zipfile, urllib.request
 import numpy as np
 from pathlib import Path
 
-# ─── Config ───────────────────────────────────────────────────────────────────
-SR         = 16000
-DURATION   = 3.0
-N_SAMPLES  = int(SR * DURATION)
-N_MFCC     = 40
-N_MELS     = 128
-HOP        = 512
-N_FFT      = 2048
-EPOCHS     = 120
-BATCH      = 64
-LR         = 1e-3
-AUGMENT    = 6       # augmentation multiplier
+# â”€â”€â”€ Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+SR        = 16000
+DURATION  = 3.0
+N_SAMPLES = int(SR * DURATION)
+N_MFCC    = 40
+N_MELS    = 128
+HOP       = 512
+N_FFT     = 2048
+EPOCHS    = 150
+BATCH     = 32
+LR        = 5e-4
+AUGMENT   = 8   # augmentation multiplier for real audio
 
 SPECIES  = ["cat", "dog", "bird"]
 EMOTIONS = [
@@ -42,134 +39,15 @@ EMOTIONS = [
     "communicating",
 ]
 
-OUT_MODEL  = Path("backend/pawtalk_classifier.onnx")
-OUT_SCALER = Path("backend/scaler_params.json")
+OUT_MODEL  = Path(__file__).parent / "pawtalk_classifier.onnx"
+OUT_SCALER = Path(__file__).parent / "scaler_params.json"
+DATA_DIR   = Path(__file__).parent / "real_data"
 
-# ─── Audio synthesis helpers ──────────────────────────────────────────────────
+# ESC-50 class IDs: cat=5, dog=0
+ESC50_CAT = 5
+ESC50_DOG = 0
 
-def _t():
-    return np.linspace(0, DURATION, N_SAMPLES, dtype=np.float32)
-
-def tone(freq, harmonics=4, noise=0.04, amp=0.8):
-    """Harmonic tone — cat/bird like."""
-    t = _t()
-    s = np.zeros(N_SAMPLES, dtype=np.float32)
-    for h in range(1, harmonics + 1):
-        s += (amp / h) * np.sin(2 * np.pi * freq * h * t).astype(np.float32)
-    s += np.random.normal(0, noise, N_SAMPLES).astype(np.float32)
-    return s / (np.abs(s).max() + 1e-8)
-
-def burst_tone(freq, harmonics=3, noise=0.05, burst_rate=3.0):
-    """Repeated tonal bursts — meow / chirp."""
-    t = _t()
-    s = np.zeros(N_SAMPLES, dtype=np.float32)
-    for h in range(1, harmonics + 1):
-        s += (0.7 / h) * np.sin(2 * np.pi * freq * h * t).astype(np.float32)
-    s += np.random.normal(0, noise, N_SAMPLES).astype(np.float32)
-    # Burst envelope
-    env = np.zeros(N_SAMPLES, dtype=np.float32)
-    period = int(SR / burst_rate)
-    on_len = int(period * 0.4)
-    for i in range(0, N_SAMPLES, period):
-        env[i:i + on_len] = 1.0
-    return (s * env) / (np.abs(s * env).max() + 1e-8)
-
-def noise_burst(freq_center, bw=400, burst_rate=2.5, amp=0.9):
-    """Noisy bursts — dog bark."""
-    from scipy.signal import butter, filtfilt
-    s = np.random.normal(0, amp, N_SAMPLES).astype(np.float32)
-    lo = max(20, freq_center - bw)
-    hi = min(SR // 2 - 1, freq_center + bw)
-    b, a = butter(4, [lo / (SR / 2), hi / (SR / 2)], btype='band')
-    s = filtfilt(b, a, s).astype(np.float32)
-    env = np.zeros(N_SAMPLES, dtype=np.float32)
-    period = int(SR / burst_rate)
-    on_len = int(period * 0.35)
-    for i in range(0, N_SAMPLES, period):
-        env[i:i + on_len] = np.random.uniform(0.6, 1.0)
-    return (s * env) / (np.abs(s * env).max() + 1e-8)
-
-def purr(freq=30, noise=0.02):
-    """Cat purr — very low freq, smooth."""
-    t = _t()
-    s = np.zeros(N_SAMPLES, dtype=np.float32)
-    for h in range(1, 8):
-        s += (0.5 / h) * np.sin(2 * np.pi * freq * h * t).astype(np.float32)
-    s += np.random.normal(0, noise, N_SAMPLES).astype(np.float32)
-    return s / (np.abs(s).max() + 1e-8)
-
-def whimper(freq=350, noise=0.12):
-    """Dog whimper — mid freq, continuous, noisy."""
-    t = _t()
-    s = np.sin(2 * np.pi * freq * t).astype(np.float32)
-    s += np.random.normal(0, noise, N_SAMPLES).astype(np.float32)
-    # Slight tremolo
-    tremolo = (1 + 0.3 * np.sin(2 * np.pi * 5 * t)).astype(np.float32)
-    s = s * tremolo
-    return s / (np.abs(s).max() + 1e-8)
-
-def bird_song(base_freq=2000, n_notes=8):
-    """Bird song — rapid high-freq tonal bursts."""
-    t = _t()
-    s = np.zeros(N_SAMPLES, dtype=np.float32)
-    note_len = N_SAMPLES // n_notes
-    for i in range(n_notes):
-        f = base_freq * np.random.uniform(0.8, 1.4)
-        start = i * note_len
-        end   = start + int(note_len * 0.6)
-        seg_t = np.linspace(0, (end - start) / SR, end - start)
-        seg   = np.sin(2 * np.pi * f * seg_t).astype(np.float32)
-        s[start:end] += seg
-    s += np.random.normal(0, 0.02, N_SAMPLES).astype(np.float32)
-    return s / (np.abs(s).max() + 1e-8)
-
-# ─── Synthetic dataset definition ─────────────────────────────────────────────
-# (species, emotion, generator_lambda, count)
-CONFIGS = [
-    # ── Cats ──────────────────────────────────────────────────────────────────
-    ("cat", "communicating",     lambda: tone(np.random.uniform(400, 800), 4, 0.03),           80),
-    ("cat", "communicating",     lambda: burst_tone(np.random.uniform(350, 750), 3, 0.04, 1.5),60),
-    ("cat", "happy_playful",     lambda: burst_tone(np.random.uniform(600, 1100), 3, 0.04, 3), 70),
-    ("cat", "happy_playful",     lambda: tone(np.random.uniform(700, 1200), 3, 0.05),          50),
-    ("cat", "content_calm",      lambda: purr(np.random.uniform(20, 45), 0.01),                80),
-    ("cat", "content_calm",      lambda: tone(np.random.uniform(200, 400), 6, 0.01),           50),
-    ("cat", "anxious_stressed",  lambda: tone(np.random.uniform(900, 1500), 2, 0.10),          70),
-    ("cat", "anxious_stressed",  lambda: burst_tone(np.random.uniform(800, 1400), 2, 0.09, 4), 50),
-    ("cat", "attention_seeking", lambda: burst_tone(np.random.uniform(400, 750), 4, 0.05, 2),  70),
-    ("cat", "attention_seeking", lambda: tone(np.random.uniform(350, 700), 4, 0.06),           50),
-    ("cat", "alert_warning",     lambda: tone(np.random.uniform(200, 500), 3, 0.07),           60),
-    ("cat", "alert_warning",     lambda: burst_tone(np.random.uniform(300, 600), 3, 0.06, 2),  40),
-
-    # ── Dogs ──────────────────────────────────────────────────────────────────
-    ("dog", "alert_warning",     lambda: noise_burst(np.random.uniform(200, 500), 400, 2.5),   90),
-    ("dog", "alert_warning",     lambda: noise_burst(np.random.uniform(150, 400), 350, 3.0),   60),
-    ("dog", "happy_playful",     lambda: noise_burst(np.random.uniform(300, 600), 300, 4.0),   80),
-    ("dog", "happy_playful",     lambda: noise_burst(np.random.uniform(250, 550), 350, 3.5),   50),
-    ("dog", "anxious_stressed",  lambda: whimper(np.random.uniform(300, 600), 0.15),           70),
-    ("dog", "anxious_stressed",  lambda: tone(np.random.uniform(250, 500), 2, 0.18),           50),
-    ("dog", "attention_seeking", lambda: whimper(np.random.uniform(200, 450), 0.12),           70),
-    ("dog", "attention_seeking", lambda: tone(np.random.uniform(180, 380), 2, 0.14),           50),
-    ("dog", "content_calm",      lambda: tone(np.random.uniform(80, 200), 3, 0.02),            60),
-    ("dog", "content_calm",      lambda: noise_burst(np.random.uniform(100, 250), 150, 0.5),   40),
-    ("dog", "communicating",     lambda: noise_burst(np.random.uniform(150, 350), 250, 1.5),   60),
-    ("dog", "communicating",     lambda: noise_burst(np.random.uniform(200, 400), 300, 2.0),   40),
-
-    # ── Birds ─────────────────────────────────────────────────────────────────
-    ("bird", "happy_playful",    lambda: bird_song(np.random.uniform(2000, 4000), 10),         80),
-    ("bird", "happy_playful",    lambda: burst_tone(np.random.uniform(1800, 3500), 5, 0.02, 6),60),
-    ("bird", "communicating",    lambda: bird_song(np.random.uniform(1500, 3000), 7),          70),
-    ("bird", "communicating",    lambda: burst_tone(np.random.uniform(1200, 2800), 4, 0.03, 4),60),
-    ("bird", "alert_warning",    lambda: burst_tone(np.random.uniform(2500, 5000), 2, 0.06, 8),70),
-    ("bird", "alert_warning",    lambda: tone(np.random.uniform(2000, 4500), 2, 0.07),         50),
-    ("bird", "content_calm",     lambda: bird_song(np.random.uniform(800, 2000), 5),           60),
-    ("bird", "content_calm",     lambda: tone(np.random.uniform(1000, 2500), 6, 0.01),         50),
-    ("bird", "anxious_stressed", lambda: burst_tone(np.random.uniform(3000, 6000), 2, 0.09, 9),60),
-    ("bird", "anxious_stressed", lambda: tone(np.random.uniform(2500, 5500), 2, 0.10),         40),
-    ("bird", "attention_seeking",lambda: burst_tone(np.random.uniform(1500, 3000), 3, 0.04, 5),60),
-    ("bird", "attention_seeking",lambda: bird_song(np.random.uniform(1200, 2500), 6),          40),
-]
-
-# ─── Feature extraction ───────────────────────────────────────────────────────
+# â”€â”€â”€ Feature extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def extract_features(audio: np.ndarray) -> np.ndarray:
     import librosa
@@ -203,45 +81,227 @@ def extract_features(audio: np.ndarray) -> np.ndarray:
         chroma.mean(1),   chroma.std(1),
     ]).astype(np.float32)
 
-# ─── Dataset generation ───────────────────────────────────────────────────────
+# â”€â”€â”€ Download ESC-50 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def build_dataset():
-    print("🔧 Generating synthetic audio samples...")
-    X, ys, ye = [], [], []
-    total = sum(c for *_, c in CONFIGS)
-    done  = 0
+def download_esc50():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cat_dir = DATA_DIR / "cat"
+    dog_dir = DATA_DIR / "dog"
+    cat_dir.mkdir(exist_ok=True)
+    dog_dir.mkdir(exist_ok=True)
 
-    for species, emotion, gen_fn, count in CONFIGS:
-        si = SPECIES.index(species)
-        ei = EMOTIONS.index(emotion)
-        for _ in range(count):
+    existing_cat = list(cat_dir.glob("*.wav"))
+    existing_dog = list(dog_dir.glob("*.wav"))
+
+    if len(existing_cat) >= 20 and len(existing_dog) >= 20:
+        print(f"âœ… Already have {len(existing_cat)} cat + {len(existing_dog)} dog files")
+        return existing_cat, existing_dog
+
+    zip_path = DATA_DIR / "ESC-50.zip"
+    if not zip_path.exists():
+        print("ðŸ“¥ Downloading ESC-50 dataset (~600 MB)...")
+        url = "https://github.com/karoldvl/ESC-50/archive/master.zip"
+        try:
+            urllib.request.urlretrieve(url, str(zip_path))
+            print(f"   Downloaded: {zip_path.stat().st_size / 1e6:.1f} MB")
+        except Exception as e:
+            print(f"âŒ Download failed: {e}")
+            return [], []
+
+    print("ðŸ“¦ Extracting cat and dog audio files...")
+    extracted = 0
+    try:
+        with zipfile.ZipFile(str(zip_path), "r") as z:
+            for member in z.namelist():
+                if not member.endswith(".wav"):
+                    continue
+                fname = Path(member).name
+                parts = fname.replace(".wav", "").split("-")
+                if len(parts) < 4:
+                    continue
+                try:
+                    target = int(parts[3])
+                except ValueError:
+                    continue
+                if target == ESC50_CAT:
+                    dest = cat_dir / fname
+                    if not dest.exists():
+                        with z.open(member) as src, open(str(dest), "wb") as dst:
+                            dst.write(src.read())
+                        extracted += 1
+                elif target == ESC50_DOG:
+                    dest = dog_dir / fname
+                    if not dest.exists():
+                        with z.open(member) as src, open(str(dest), "wb") as dst:
+                            dst.write(src.read())
+                        extracted += 1
+        print(f"   Extracted {extracted} files")
+    except Exception as e:
+        print(f"âŒ Extraction failed: {e}")
+        return [], []
+
+    cat_files = list(cat_dir.glob("*.wav"))
+    dog_files = list(dog_dir.glob("*.wav"))
+    print(f"   Cat: {len(cat_files)} files  |  Dog: {len(dog_files)} files")
+    return cat_files, dog_files
+
+# â”€â”€â”€ Load audio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def load_audio(path) -> np.ndarray:
+    import librosa
+    try:
+        y, sr = librosa.load(str(path), sr=SR, mono=True, duration=DURATION)
+        if len(y) < SR * 0.3:
+            return None
+        peak = np.abs(y).max()
+        if peak > 1e-6:
+            y = y / peak
+        return y.astype(np.float32)
+    except Exception as e:
+        print(f"   Skip {Path(path).name}: {e}")
+        return None
+
+# â”€â”€â”€ Augmentation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def augment_audio(y: np.ndarray, n: int = AUGMENT) -> list:
+    import librosa
+    results = [y]
+    rng = np.random.default_rng()
+
+    for i in range(n - 1):
+        aug = y.copy()
+
+        # Random noise
+        if rng.random() > 0.3:
+            aug = aug + rng.normal(0, rng.uniform(0.005, 0.03), len(aug)).astype(np.float32)
+
+        # Random gain
+        aug = aug * rng.uniform(0.6, 1.4)
+
+        # Time stretch
+        if rng.random() > 0.5:
             try:
-                audio = gen_fn()
-                feat  = extract_features(audio)
-                X.append(feat)
-                ys.append(si)
-                ye.append(ei)
-            except Exception as e:
+                rate = rng.uniform(0.85, 1.15)
+                aug = librosa.effects.time_stretch(aug, rate=rate)
+            except Exception:
                 pass
-            done += 1
-            if done % 100 == 0:
-                print(f"   {done}/{total} samples generated...", end="\r")
 
-    print(f"   {done}/{total} samples generated.   ")
+        # Pitch shift
+        if rng.random() > 0.5:
+            try:
+                steps = rng.uniform(-3, 3)
+                aug = librosa.effects.pitch_shift(aug, sr=SR, n_steps=steps)
+            except Exception:
+                pass
+
+        # Pad/trim
+        if len(aug) < N_SAMPLES:
+            aug = np.pad(aug, (0, N_SAMPLES - len(aug)))
+        else:
+            aug = aug[:N_SAMPLES]
+
+        peak = np.abs(aug).max()
+        if peak > 1e-6:
+            aug = aug / peak
+
+        results.append(aug.astype(np.float32))
+
+    return results
+
+# â”€â”€â”€ Synthetic bird data (ESC-50 doesn't have enough bird clips) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def _t():
+    return np.linspace(0, DURATION, N_SAMPLES, dtype=np.float32)
+
+def bird_song(base_freq=2000, n_notes=8):
+    t = _t()
+    s = np.zeros(N_SAMPLES, dtype=np.float32)
+    note_len = N_SAMPLES // n_notes
+    for i in range(n_notes):
+        f = base_freq * np.random.uniform(0.8, 1.4)
+        start = i * note_len
+        end   = start + int(note_len * 0.6)
+        seg_t = np.linspace(0, (end - start) / SR, end - start)
+        seg   = np.sin(2 * np.pi * f * seg_t).astype(np.float32)
+        s[start:end] += seg
+    s += np.random.normal(0, 0.02, N_SAMPLES).astype(np.float32)
+    return s / (np.abs(s).max() + 1e-8)
+
+def burst_tone(freq, harmonics=3, noise=0.05, burst_rate=3.0):
+    t = _t()
+    s = np.zeros(N_SAMPLES, dtype=np.float32)
+    for h in range(1, harmonics + 1):
+        s += (0.7 / h) * np.sin(2 * np.pi * freq * h * t).astype(np.float32)
+    s += np.random.normal(0, noise, N_SAMPLES).astype(np.float32)
+    env = np.zeros(N_SAMPLES, dtype=np.float32)
+    period = int(SR / burst_rate)
+    on_len = int(period * 0.4)
+    for i in range(0, N_SAMPLES, period):
+        env[i:i + on_len] = 1.0
+    return (s * env) / (np.abs(s * env).max() + 1e-8)
+
+BIRD_CONFIGS = [
+    lambda: bird_song(np.random.uniform(2000, 4000), 10),
+    lambda: burst_tone(np.random.uniform(1800, 3500), 5, 0.02, 6),
+    lambda: bird_song(np.random.uniform(1500, 3000), 7),
+    lambda: burst_tone(np.random.uniform(1200, 2800), 4, 0.03, 4),
+    lambda: burst_tone(np.random.uniform(2500, 5000), 2, 0.06, 8),
+    lambda: bird_song(np.random.uniform(800, 2000), 5),
+]
+
+# â”€â”€â”€ Build dataset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def build_dataset(cat_files, dog_files):
+    print("\nðŸ”§ Building dataset from real audio + augmentation...")
+    X, ys, ye = [], [], []
+
+    # â”€â”€ Real cat audio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    print(f"   Loading {len(cat_files)} cat files...")
+    cat_loaded = 0
+    for f in cat_files:
+        audio = load_audio(f)
+        if audio is None:
+            continue
+        for aug in augment_audio(audio):
+            feat = extract_features(aug)
+            X.append(feat)
+            ys.append(SPECIES.index("cat"))
+            ye.append(EMOTIONS.index("communicating"))  # default emotion
+        cat_loaded += 1
+    print(f"   Cat: {cat_loaded} files â†’ {cat_loaded * AUGMENT} samples")
+
+    # â”€â”€ Real dog audio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    print(f"   Loading {len(dog_files)} dog files...")
+    dog_loaded = 0
+    for f in dog_files:
+        audio = load_audio(f)
+        if audio is None:
+            continue
+        for aug in augment_audio(audio):
+            feat = extract_features(aug)
+            X.append(feat)
+            ys.append(SPECIES.index("dog"))
+            ye.append(EMOTIONS.index("alert_warning"))  # default emotion
+        dog_loaded += 1
+    print(f"   Dog: {dog_loaded} files â†’ {dog_loaded * AUGMENT} samples")
+
+    # â”€â”€ Synthetic bird audio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    print("   Generating synthetic bird samples...")
+    bird_count = 0
+    np.random.seed(42)
+    for _ in range(200):
+        gen = BIRD_CONFIGS[np.random.randint(len(BIRD_CONFIGS))]
+        audio = gen()
+        feat = extract_features(audio)
+        X.append(feat)
+        ys.append(SPECIES.index("bird"))
+        ye.append(EMOTIONS.index("happy_playful"))
+        bird_count += 1
+    print(f"   Bird: {bird_count} synthetic samples")
+
     return np.array(X, np.float32), np.array(ys), np.array(ye)
 
-
-def augment(X, ys, ye, factor=AUGMENT):
-    """Augment with noise + scale perturbation."""
-    Xa, ysa, yea = [X], [ys], [ye]
-    for _ in range(factor - 1):
-        noise = np.random.normal(0, 0.025, X.shape).astype(np.float32)
-        scale = np.random.uniform(0.88, 1.12, (len(X), 1)).astype(np.float32)
-        Xa.append((X * scale + noise).astype(np.float32))
-        ysa.append(ys); yea.append(ye)
-    return np.vstack(Xa), np.concatenate(ysa), np.concatenate(yea)
-
-# ─── Training ─────────────────────────────────────────────────────────────────
+# â”€â”€â”€ Training â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def train(X, ys, ye):
     import torch, torch.nn as nn
@@ -249,12 +309,15 @@ def train(X, ys, ye):
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import train_test_split
 
-    print(f"\n🧠 Training on {len(X)} samples  |  features={X.shape[1]}")
+    print(f"\nðŸ§  Training on {len(X)} samples  |  features={X.shape[1]}")
+    print(f"   Species distribution:")
+    for i, s in enumerate(SPECIES):
+        n = (ys == i).sum()
+        print(f"     {s}: {n} samples")
 
     scaler   = StandardScaler()
     X_scaled = scaler.fit_transform(X).astype(np.float32)
 
-    # Save scaler
     with open(OUT_SCALER, "w") as f:
         json.dump({"mean": scaler.mean_.tolist(), "scale": scaler.scale_.tolist()}, f)
     print(f"   Saved {OUT_SCALER}")
@@ -302,7 +365,7 @@ def train(X, ys, ye):
         for xb, sb, eb in tr_dl:
             opt.zero_grad()
             sp, em = model(xb)
-            loss = loss_fn(sp, sb) + 0.8 * loss_fn(em, eb)
+            loss = loss_fn(sp, sb) + 0.5 * loss_fn(em, eb)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
@@ -328,10 +391,9 @@ def train(X, ys, ye):
         if epoch % 20 == 0 or epoch == 1:
             print(f"   Epoch {epoch:3d}/{EPOCHS}  species={sp_acc:.1f}%  emotion={em_acc:.1f}%  avg={avg:.1f}%")
 
-    print(f"\n✅ Best avg accuracy: {best_acc:.1f}%")
+    print(f"\nâœ… Best avg accuracy: {best_acc:.1f}%")
     model.load_state_dict(best_state)
 
-    # Export ONNX (use opset 12 for max compatibility without onnxscript)
     model.eval()
     dummy = torch.zeros(1, dim)
     torch.onnx.export(
@@ -342,48 +404,45 @@ def train(X, ys, ye):
         opset_version=12,
     )
     kb = OUT_MODEL.stat().st_size / 1024
-    print(f"✅ Exported: {OUT_MODEL}  ({kb:.0f} KB)")
+    print(f"âœ… Exported: {OUT_MODEL}  ({kb:.0f} KB)")
     return best_acc
 
-
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def main():
     print("=" * 60)
-    print("  PawTalk ONNX Model Trainer  (cat / dog / bird + emotions)")
+    print("  PawTalk ONNX Trainer v5.0 â€” Real Audio (ESC-50)")
     print("=" * 60)
 
     try:
         import librosa, torch, sklearn, onnx
-        print("✅ All dependencies ready\n")
+        print("âœ… All dependencies ready\n")
     except ImportError as e:
-        print(f"❌ Missing: {e}")
+        print(f"âŒ Missing: {e}")
         sys.exit(1)
 
     np.random.seed(42)
 
-    # 1. Generate
-    X, ys, ye = build_dataset()
+    # 1. Download real audio
+    cat_files, dog_files = download_esc50()
 
-    # 2. Augment
-    print(f"\n🔀 Augmenting {len(X)} → ", end="")
-    X, ys, ye = augment(X, ys, ye)
-    print(f"{len(X)} samples")
+    if len(cat_files) < 5 or len(dog_files) < 5:
+        print("âŒ Not enough real audio files. Check your internet connection.")
+        sys.exit(1)
 
-    # 3. Print distribution
-    print("\n📊 Class distribution:")
-    for i, s in enumerate(SPECIES):
-        n = (ys == i).sum()
-        print(f"   {s:6s}: {n:5d} samples")
+    # 2. Build dataset
+    X, ys, ye = build_dataset(cat_files, dog_files)
 
-    # 4. Train + export
+    # 3. Train + export
     acc = train(X, ys, ye)
 
-    print("\n🎉 Done!")
+    print("\nðŸŽ‰ Done!")
     print(f"   {OUT_MODEL}")
     print(f"   {OUT_SCALER}")
     print(f"   Final accuracy: {acc:.1f}%")
+    print("\nâš ï¸  Remember to commit and push the new .onnx and .onnx.data files!")
 
 
 if __name__ == "__main__":
     main()
+
