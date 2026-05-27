@@ -68,7 +68,7 @@ def log_request():
 # ─── Health check ─────────────────────────────────────────────────────────────
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "PawTalk Backend", "model": "ONNX-Classifier", "version": "6.0"}), 200
+    return jsonify({"status": "ok", "service": "PawTalk Backend", "model": "ONNX-Classifier", "version": "6.1"}), 200
 
 # ─── Checklist Routes ─────────────────────────────────────────────────────────
 
