@@ -173,3 +173,29 @@ export function addNotificationReceivedListener(callback) {
   const sub = Notifications.addNotificationReceivedListener(callback);
   return () => sub.remove();
 }
+
+// ─── Register push token with backend ────────────────────────────────────────
+export async function registerForPushNotifications(userId) {
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: '0a8eb42b-1334-4ed8-9251-04adb9254647',
+    });
+    const token = tokenData?.data;
+    if (!token || !userId) return;
+
+    const BACKEND_URL =
+      process.env.EXPO_PUBLIC_BACKEND_URL ||
+      'https://backend-v3-production-7ca9.up.railway.app';
+
+    await fetch(`${BACKEND_URL}/registerPushToken`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, expoPushToken: token }),
+    });
+  } catch (_) {
+    // Non-critical — silently ignore
+  }
+}

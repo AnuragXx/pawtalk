@@ -7,7 +7,7 @@ import { auth, db, GOOGLE_WEB_CLIENT_ID } from '../config/firebase';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const ANDROID_CLIENT_ID = "443370739339-msfvs7v08arqvdfcf4ctbv3ccj7lrjb0.apps.googleusercontent.com";
+const ANDROID_CLIENT_ID = "197534087158-o29590e8lqpliv94upik9mussa3urh8f.apps.googleusercontent.com";
 
 export default function useGoogleAuth({ onSuccess, onError } = {}) {
   const [request, response, promptAsync] = Google.useAuthRequest({

@@ -183,7 +183,7 @@ export default function SettingsScreen({ navigation }) {
           />
         </View>
 
-        <Text style={styles.version}>PawTalk v1.0.0</Text>
+        <Text style={styles.version}>PawTalk v1.1.0</Text>
       </ScrollView>
 
       {/* Change Password Modal */}
