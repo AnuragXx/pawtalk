@@ -202,7 +202,7 @@ HOP       = 512
 N_FFT     = 2048
 MAX_SAMP  = 3 * AUDIO_SR
 
-SPECIES  = ["cat", "dog", "bird"]
+SPECIES  = ["cat", "dog"]
 EMOTIONS = [
     "happy_playful",
     "content_calm",
@@ -224,7 +224,6 @@ EMOTION_META = {
 SPECIES_META = {
     "cat":  {"emoji": "🐱", "color": "#e64980", "label": "Cat Detected"},
     "dog":  {"emoji": "🐶", "color": "#ff9800", "label": "Dog Detected"},
-    "bird": {"emoji": "🐦", "color": "#2196f3", "label": "Bird Detected"},
 }
 
 # ─── Load ONNX model + scaler at startup ─────────────────────────────────────
