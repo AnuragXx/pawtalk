@@ -439,13 +439,9 @@ export default function SoundRecorderScreen({ navigation }) {
 
                 <View style={styles.resultActions}>
                   <TouchableOpacity style={styles.resultBtn} onPress={() => {
-                    if (result.isMock) {
-                      Alert.alert("Demo Result", "Record a real pet sound to save an actual analysis.");
-                    } else {
-                      Alert.alert("Saved ✓", "Analysis saved to your history.");
-                    }
+                    navigation.getParent()?.navigate("SoundHistory");
                   }}>
-                    <Text style={styles.resultBtnText}>Save</Text>
+                    <Text style={styles.resultBtnText}>View History</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.resultBtn} onPress={goToChatbot}>
                     <Text style={styles.resultBtnText}>Ask PoofieAI</Text>

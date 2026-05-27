@@ -65,9 +65,9 @@ export default function SoundHistoryScreen({ navigation }) {
 
   const renderItem = useCallback(({ item }) => {
     const behaviorLabel = item.behavior || item.emotion || "Analyzed";
-    const behaviorEmoji = item.behaviorEmoji || (item.species === "cat" ? "🐱" : "🐶");
+    const behaviorEmoji = item.behaviorEmoji || (item.species === "cat" ? "🐱" : item.species === "bird" ? "🐦" : "🐶");
     const color = item.behaviorColor || BEHAVIOR_COLORS[behaviorLabel] || "#e64980";
-    const speciesEmoji = item.species === "cat" ? "🐱" : "🐶";
+    const speciesEmoji = item.species === "cat" ? "🐱" : item.species === "bird" ? "🐦" : "🐶";
     return (
       <View style={[styles.card, { borderLeftColor: color }]}>
         <Text style={styles.cardEmoji}>{speciesEmoji}</Text>
@@ -84,6 +84,15 @@ export default function SoundHistoryScreen({ navigation }) {
             <Text style={styles.cardDesc} numberOfLines={2}>{item.behaviorDescription}</Text>
           ) : null}
           <Text style={styles.cardTime}>{formatTime(item.createdAt)}</Text>
+          {!item.isMock && (
+            <TouchableOpacity
+              style={styles.askBtn}
+              onPress={() => navigation.navigate("Chatbot")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.askBtnText}>🐾 Ask PoofieAI about this</Text>
+            </TouchableOpacity>
+          )}
         </View>
         {item.isMock && (
           <View style={styles.demoBadge}>
@@ -101,7 +110,7 @@ export default function SoundHistoryScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     );
-  }, [handleDelete]);
+  }, [handleDelete, navigation]);
 
   return (
     <SafeAreaView style={styles.container}>

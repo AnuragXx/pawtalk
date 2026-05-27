@@ -12,15 +12,9 @@ const SPECIES_CONFIG = {
 
 export const soundAPI = {
   analyze: async (audioUri, petType) => {
-    console.log("🔍 soundAPI.analyze called");
-    console.log("   Backend URL:", BACKEND_URL);
-    console.log("   Audio URI:", audioUri);
-    console.log("   Pet Type:", petType);
-    
     try {
       if (!audioUri) throw new Error("No audio URI provided");
 
-      // ── Build multipart form with the audio file ──────────────────────────
       const formData = new FormData();
       const filename = audioUri.split("/").pop() || "recording.m4a";
       const ext = filename.split(".").pop()?.toLowerCase() || "m4a";
@@ -35,10 +29,6 @@ export const soundAPI = {
         type: mimeType,
       });
 
-      console.log("📤 Sending request to:", `${BACKEND_URL}/analyze`);
-      console.log("   File:", filename, "Type:", mimeType);
-
-      // ── Call Flask backend ────────────────────────────────────────────────
       const response = await fetch(`${BACKEND_URL}/analyze`, {
         method:  "POST",
         body:    formData,
@@ -47,23 +37,13 @@ export const soundAPI = {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.warn("❌ Backend /analyze error:", response.status, errText);
         throw new Error("Backend error: " + response.status);
       }
 
       const data = await response.json();
-      console.log("✅ Backend response:", data);
-      
       const species = data.species || petType || "dog";
       const confidence = data.confidence || 0;
       const config = SPECIES_CONFIG[species] || SPECIES_CONFIG.dog;
-
-      // If model is very uncertain or audio is unclear, flag it
-      if (data.isVeryUnclear) {
-        console.log(`🔇 Audio unclear: cat=${data.cat_prob}% dog=${data.dog_prob}%`);
-      } else if (data.isUncertain) {
-        console.log(`⚠️ Low confidence: cat=${data.cat_prob}% dog=${data.dog_prob}%`);
-      }
 
       return {
         success:             true,
@@ -77,7 +57,6 @@ export const soundAPI = {
         emoji:               config.emoji,
         color:               config.color,
         isMock:              data.isMock || false,
-        // ── Behavior detection fields ──────────────────────────────────────
         behavior:            data.behavior || null,
         behaviorDescription: data.behaviorDescription || null,
         behaviorEmoji:       data.behaviorEmoji || null,
@@ -86,9 +65,6 @@ export const soundAPI = {
       };
 
     } catch (err) {
-      console.warn("⚠️ Sound analysis error (falling back to mock):", err.message);
-      console.warn("   Error details:", err);
-      
       // Graceful fallback — app still works if backend is unreachable
       const species = (petType === "cat" || petType === "dog") ? petType : "dog";
       const config = SPECIES_CONFIG[species] || SPECIES_CONFIG.dog;
