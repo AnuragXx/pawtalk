@@ -386,6 +386,21 @@ def classify(audio: np.ndarray) -> dict:
         is_uncertain  = sp_conf < 60.0
         is_very_unclear = sp_conf < 40.0
 
+        # ── Not a pet sound check ─────────────────────────────────────────────
+        # Our model is trained only on cat/dog sounds. If confidence is below
+        # 70%, the audio is likely not a cat or dog — reject it.
+        NOT_PET_THRESHOLD = 70.0
+        if sp_conf < NOT_PET_THRESHOLD:
+            return {
+                "species": "unknown", "confidence": sp_conf,
+                "cat_prob": cat_prob, "dog_prob": dog_prob,
+                "isUncertain": True, "isVeryUnclear": True, "isMock": False,
+                "isNotPet": True,
+                "behavior": "Not a Pet Sound",
+                "behaviorDescription": "This doesn't sound like a cat or dog. Please record your pet making a clear sound closer to the microphone.",
+                "behaviorEmoji": "❓", "behaviorColor": "#9e9e9e", "behaviorConfidence": 0.0,
+            }
+
         logger.info(
             "ONNX -> species=%s (%.1f%%)  emotion=%s (%.1f%%)",
             species, sp_conf, emotion, em_conf

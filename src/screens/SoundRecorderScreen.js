@@ -319,8 +319,23 @@ export default function SoundRecorderScreen({ navigation }) {
 
         {result && !isAnalyzing && (
           <>
-            {/* Very unclear audio — show prominent warning to record again */}
-            {result.isVeryUnclear && !result.isMock ? (
+            {/* Not a pet sound — random audio uploaded */}
+            {result.isNotPet && !result.isMock ? (
+              <View style={styles.unclearCard}>
+                <Text style={styles.unclearEmoji}>❓</Text>
+                <Text style={[styles.unclearTitle, { color: "#9e9e9e" }]}>Not a Pet Sound</Text>
+                <Text style={styles.unclearMessage}>
+                  This doesn't sound like a cat or dog. Please record your pet making a clear meow, bark, or vocalization closer to the microphone.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.recordAgainBtn, { backgroundColor: "#9e9e9e" }]}
+                  onPress={() => { setResult(null); setSeconds(0); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.recordAgainBtnText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            ) : result.isVeryUnclear && !result.isMock ? (
               <View style={styles.unclearCard}>
                 <Text style={styles.unclearEmoji}>🔇</Text>
                 <Text style={styles.unclearTitle}>Sound Unclear</Text>

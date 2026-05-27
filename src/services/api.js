@@ -61,6 +61,7 @@ export const soundAPI = {
             dogProb:             data.dog_prob || 0,
             isUncertain:         data.isUncertain || false,
             isVeryUnclear:       data.isVeryUnclear || false,
+            isNotPet:            data.isNotPet || false,
             label:               config.label,
             emoji:               config.emoji,
             color:               config.color,
