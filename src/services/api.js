@@ -29,40 +29,58 @@ export const soundAPI = {
         type: mimeType,
       });
 
-      const response = await fetch(`${BACKEND_URL}/analyze`, {
-        method:  "POST",
-        body:    formData,
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      // Try up to 2 times with a 60-second timeout each
+      let lastError = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error("Backend error: " + response.status);
+          const response = await fetch(`${BACKEND_URL}/analyze`, {
+            method:  "POST",
+            body:    formData,
+            headers: { "Content-Type": "multipart/form-data" },
+            signal:  controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error("Backend error: " + response.status);
+          }
+
+          const data = await response.json();
+          const species = data.species || petType || "dog";
+          const confidence = data.confidence || 0;
+          const config = SPECIES_CONFIG[species] || SPECIES_CONFIG.dog;
+
+          return {
+            success:             true,
+            species,
+            confidence,
+            catProb:             data.cat_prob || 0,
+            dogProb:             data.dog_prob || 0,
+            isUncertain:         data.isUncertain || false,
+            isVeryUnclear:       data.isVeryUnclear || false,
+            label:               config.label,
+            emoji:               config.emoji,
+            color:               config.color,
+            isMock:              data.isMock || false,
+            behavior:            data.behavior || null,
+            behaviorDescription: data.behaviorDescription || null,
+            behaviorEmoji:       data.behaviorEmoji || null,
+            behaviorColor:       data.behaviorColor || null,
+            behaviorConfidence:  data.behaviorConfidence || 0,
+          };
+        } catch (err) {
+          lastError = err;
+          if (attempt < 2) {
+            // Wait 2 seconds before retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
       }
-
-      const data = await response.json();
-      const species = data.species || petType || "dog";
-      const confidence = data.confidence || 0;
-      const config = SPECIES_CONFIG[species] || SPECIES_CONFIG.dog;
-
-      return {
-        success:             true,
-        species,
-        confidence,
-        catProb:             data.cat_prob || 0,
-        dogProb:             data.dog_prob || 0,
-        isUncertain:         data.isUncertain || false,
-        isVeryUnclear:       data.isVeryUnclear || false,
-        label:               config.label,
-        emoji:               config.emoji,
-        color:               config.color,
-        isMock:              data.isMock || false,
-        behavior:            data.behavior || null,
-        behaviorDescription: data.behaviorDescription || null,
-        behaviorEmoji:       data.behaviorEmoji || null,
-        behaviorColor:       data.behaviorColor || null,
-        behaviorConfidence:  data.behaviorConfidence || 0,
-      };
+      throw lastError;
 
     } catch (err) {
       // Graceful fallback — app still works if backend is unreachable
