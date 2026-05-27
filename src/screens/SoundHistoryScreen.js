@@ -92,8 +92,7 @@ export default function SoundHistoryScreen({ navigation }) {
             >
               <Text style={styles.askBtnText}>🐾 Ask PoofieAI about this</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          )}        </View>
         {item.isMock && (
           <View style={styles.demoBadge}>
             <Text style={styles.demoBadgeText}>Demo</Text>
@@ -183,6 +182,8 @@ const styles = StyleSheet.create({
   demoBadge: { backgroundColor: "#f5f5f5", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginRight: 8 },
   demoBadgeText: { fontFamily: "Poppins-Regular", fontSize: 10 * scaleX, color: "#aaa" },
   deleteBtn: { padding: 6 },
+  askBtn: { marginTop: 8, backgroundColor: "#fce4ec", borderRadius: 12, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "flex-start" },
+  askBtnText: { fontFamily: "Poppins-SemiBold", fontSize: 11 * scaleX, color: "#e64980" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
   emptyEmoji: { fontSize: 60, marginBottom: 16 },
   emptyTitle: { fontFamily: "Poppins-Bold", fontSize: 20 * scaleX, color: "#1a1a1a", marginBottom: 8 },

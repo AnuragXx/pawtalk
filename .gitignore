@@ -66,3 +66,7 @@ start_expo.ps1
 # Temporary / generated files
 backend/real_data/
 backend/__pycache__/
+
+# Local ML training artifacts — large, not part of source
+training_data/
+training_log.txt

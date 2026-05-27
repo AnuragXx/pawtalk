@@ -1,0 +1,21 @@
+# Python backend — not needed for the React Native build
+backend/venv/
+backend/real_data/
+backend/__pycache__/
+backend/*.pyc
+backend/training_data/
+
+# Local ML training artifacts
+training_data/
+training_log.txt
+
+# Git history
+.git/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

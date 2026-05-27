@@ -17,8 +17,9 @@ const scaleX = width / 412;
 const scaleY = height / 917;
 
 const PET_TYPES = [
-  { key: "dog", label: "Dog", emoji: "🐶" },
-  { key: "cat", label: "Cat", emoji: "🐱" },
+  { key: "dog",  label: "Dog",  emoji: "🐶" },
+  { key: "cat",  label: "Cat",  emoji: "🐱" },
+  { key: "bird", label: "Bird", emoji: "🐦" },
 ];
 const SEX_OPTIONS = ["Male", "Female"];
 
