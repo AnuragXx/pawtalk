@@ -1,6 +1,5 @@
 ﻿// ─── Backend URL ─────────────────────────────────────────────────────────────
-// LOCAL (same WiFi only):  "http://10.142.224.99:5000"
-// CLOUD (works everywhere): set EXPO_PUBLIC_BACKEND_URL in .env, or falls back to Railway
+// v6.0 — cat/dog model with 60s timeout + auto-retry
 const BACKEND_URL =
   process.env.EXPO_PUBLIC_BACKEND_URL ||
   "https://backend-v3-production-7ca9.up.railway.app";
