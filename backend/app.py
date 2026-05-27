@@ -31,6 +31,9 @@ except Exception as _e:
 app = Flask(__name__)
 CORS(app)
 
+# Allow audio uploads up to 25 MB (phone recordings can be large)
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
+
 # ─── Firebase Admin SDK ───────────────────────────────────────────────────────
 db_admin = None
 
@@ -487,6 +490,10 @@ def not_found(e):
 @app.errorhandler(405)
 def method_not_allowed(e):
     return jsonify({"error": "Method not allowed"}), 405
+
+@app.errorhandler(413)
+def request_too_large(e):
+    return jsonify({"error": "Audio file too large. Please record a shorter clip (max 25MB)."}), 413
 
 @app.errorhandler(500)
 def internal_error(e):
