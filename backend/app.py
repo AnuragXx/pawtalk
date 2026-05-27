@@ -386,18 +386,43 @@ def classify(audio: np.ndarray) -> dict:
         is_uncertain  = sp_conf < 60.0
         is_very_unclear = sp_conf < 40.0
 
-        # ── Not a pet sound check ─────────────────────────────────────────────
-        # Our model is trained only on cat/dog sounds. If confidence is below
-        # 70%, the audio is likely not a cat or dog — reject it.
-        NOT_PET_THRESHOLD = 70.0
-        if sp_conf < NOT_PET_THRESHOLD:
+        # ── Not a pet sound check using spectral features ─────────────────────
+        # Binary classifier always picks cat or dog — we need acoustic checks
+        # to detect non-pet sounds (noise, music, speech, silence).
+        import librosa as _lr
+        _a = audio.astype(np.float32)
+        if len(_a) < MAX_SAMP: _a = np.pad(_a, (0, MAX_SAMP - len(_a)))
+        else: _a = _a[:MAX_SAMP]
+
+        _zcr  = _lr.feature.zero_crossing_rate(_a, hop_length=512)[0]
+        _rms  = _lr.feature.rms(y=_a, hop_length=512)[0]
+        _cent = _lr.feature.spectral_centroid(y=_a, sr=AUDIO_SR, hop_length=512)[0]
+
+        zcr_mean = float(np.mean(_zcr))
+        zcr_std  = float(np.std(_zcr))
+        rms_mean = float(np.mean(_rms))
+        cent_mean = float(np.mean(_cent))
+
+        is_not_pet = False
+        if rms_mean < 0.003:                         # silence
+            is_not_pet = True
+        elif zcr_mean > 0.38:                        # white noise
+            is_not_pet = True
+        elif zcr_std < 0.003 and zcr_mean < 0.04:   # pure tone / music
+            is_not_pet = True
+        elif cent_mean < 100 or cent_mean > 13000:   # out of pet freq range
+            is_not_pet = True
+
+        if is_not_pet:
+            logger.info("Not a pet sound (zcr=%.3f std=%.3f rms=%.4f cent=%.0f)",
+                        zcr_mean, zcr_std, rms_mean, cent_mean)
             return {
-                "species": "unknown", "confidence": sp_conf,
-                "cat_prob": cat_prob, "dog_prob": dog_prob,
+                "species": "unknown", "confidence": 0.0,
+                "cat_prob": 0.0, "dog_prob": 0.0,
                 "isUncertain": True, "isVeryUnclear": True, "isMock": False,
                 "isNotPet": True,
                 "behavior": "Not a Pet Sound",
-                "behaviorDescription": "This doesn't sound like a cat or dog. Please record your pet making a clear sound closer to the microphone.",
+                "behaviorDescription": "This doesn't sound like a cat or dog. Please record your pet making a clear meow, bark, or vocalization.",
                 "behaviorEmoji": "❓", "behaviorColor": "#9e9e9e", "behaviorConfidence": 0.0,
             }
 
