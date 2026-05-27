@@ -4,15 +4,15 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBoOjz6kDDrsT_0t9UkeDkPY8KkeZy84z4",
-  authDomain: "pawtalk-8b4af.firebaseapp.com",
-  projectId: "pawtalk-8b4af",
-  storageBucket: "pawtalk-8b4af.firebasestorage.app",
-  messagingSenderId: "443370739339",
-  appId: "1:443370739339:android:ade3bb16a58c06eb17e68e",
+  apiKey: "AIzaSyDy0EDAYMX1TPp8O8yT04UJTH7wfC6zS8k",
+  authDomain: "pawtalk-5bb6f.firebaseapp.com",
+  projectId: "pawtalk-5bb6f",
+  storageBucket: "pawtalk-5bb6f.firebasestorage.app",
+  messagingSenderId: "197534087158",
+  appId: "1:197534087158:android:0b07e14113ebcf39ecf9d7",
 };
 
-export const GOOGLE_WEB_CLIENT_ID = "443370739339-qpecmi16f24tepms269estbgs0ntubs0.apps.googleusercontent.com";
+export const GOOGLE_WEB_CLIENT_ID = "197534087158-o29590e8lqpliv94upik9mussa3urh8f.apps.googleusercontent.com";
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
