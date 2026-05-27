@@ -110,15 +110,46 @@ export const soundAPI = {
 
 var GROQ_KEY = process.env.EXPO_PUBLIC_GROQ_KEY || "";
 var GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-var SYS_PROMPT = "You are PoofieAI, a friendly pet care assistant. Answer simply and briefly. Do not give medical diagnosis. Keep answers to 3-4 lines maximum.";
-var FALLBACK = "I am having trouble responding right now. Please try again later or consult a vet if urgent.";
+var FALLBACK = "I'm having a little trouble right now 🐾 Please try again in a moment, or consult a vet if it's urgent.";
+
+function buildSystemPrompt(petType, petBreed, petName) {
+  var pet = petName || "your pet";
+  var type = petType || "pet";
+  var breed = petBreed ? ` (${petBreed})` : "";
+
+  return `You are PoofieAI 🐾, a warm, knowledgeable, and friendly AI pet care assistant built into the PawTalk app.
+
+The user's pet is: ${pet}, a ${type}${breed}.
+
+Your personality:
+- Warm, caring, and encouraging — like a knowledgeable friend who loves animals
+- Use the pet's name (${pet}) naturally in responses when relevant
+- Add relevant pet emojis to make responses feel lively (🐱🐶🐾❤️🏥🍖)
+- Be concise but complete — 3-6 sentences is ideal, never more than 8
+- Use simple, clear language — no medical jargon
+
+Your rules:
+- NEVER diagnose medical conditions — always recommend a vet for health concerns
+- NEVER suggest home remedies for serious symptoms
+- For urgent symptoms (not eating 2+ days, difficulty breathing, blood, seizures) — always say "see a vet immediately"
+- Stay focused on pet care topics only
+- If asked something unrelated to pets, gently redirect back to pet care
+
+Your expertise covers:
+- Pet behavior and body language interpretation
+- Nutrition and feeding guidelines
+- Training tips and positive reinforcement
+- Grooming and hygiene
+- General wellness and preventive care
+- Emotional support for worried pet owners
+- Understanding PawTalk's sound analysis results`;
+}
 
 export const chatAPI = {
-  sendMessage: async (message, petType, petBreed, history = []) => {
+  sendMessage: async (message, petType, petBreed, history = [], petName = "") => {
     try {
       if (!message || !message.trim()) return { success: true, reply: FALLBACK };
 
-      // Validate Groq key before attempting the request
       if (!GROQ_KEY) {
         console.warn("⚠️ EXPO_PUBLIC_GROQ_KEY is not set. Chatbot will not work.");
         return {
@@ -127,18 +158,15 @@ export const chatAPI = {
         };
       }
 
-      var context = "";
-      if (petType) context += "User has a " + petType;
-      if (petBreed) context += " (" + petBreed + ")";
-      if (context) context += ". ";
+      var sysPrompt = buildSystemPrompt(petType, petBreed, petName);
 
-      // Build full conversation history for Groq
       var conversationMessages = [
-        { role: "system", content: SYS_PROMPT + (context ? " " + context : "") },
+        { role: "system", content: sysPrompt },
       ];
 
-      // Add prior turns (skip the initial greeting bot message)
-      history.forEach((msg) => {
+      // Add prior turns — keep last 10 for context (skip initial greeting)
+      var recentHistory = history.slice(-10);
+      recentHistory.forEach((msg) => {
         if (msg.sender === "user") {
           conversationMessages.push({ role: "user", content: msg.text });
         } else if (msg.sender === "bot" && msg.id !== "0") {
@@ -146,7 +174,6 @@ export const chatAPI = {
         }
       });
 
-      // Add the current user message
       conversationMessages.push({ role: "user", content: message.trim() });
 
       var res = await fetch(GROQ_ENDPOINT, {
@@ -158,15 +185,16 @@ export const chatAPI = {
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: conversationMessages,
-          max_tokens: 200,
-          temperature: 0.7,
+          max_tokens: 350,
+          temperature: 0.75,
+          top_p: 0.9,
         }),
       });
 
       if (!res.ok) {
         var errText = await res.text();
         console.error("Groq error:", res.status, errText);
-        if (res.status === 429) return { success: true, reply: "PoofieAI is busy right now. Please wait a moment and try again." };
+        if (res.status === 429) return { success: true, reply: "PoofieAI is a little busy right now 🐾 Please wait a moment and try again!" };
         return { success: true, reply: FALLBACK };
       }
 

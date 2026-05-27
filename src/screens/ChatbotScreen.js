@@ -141,10 +141,14 @@ const MessageRow = memo(({ item }) => {
 });
 
 const SUGGESTIONS = [
-  { emoji: "😿", question: "Why is my cat meowing so much?",    answer: "Cats meow to communicate with humans. Excessive meowing can mean they're hungry, want attention, feeling unwell, or stressed. Check their food and water first. If it continues unusually, a vet visit is recommended. 🐱" },
-  { emoji: "😰", question: "My dog seems anxious, what to do?", answer: "Try to identify the trigger — loud noises, strangers, or being alone are common causes. Keep your dog in a calm, safe space. Regular exercise and a consistent routine help a lot. For severe anxiety, consult your vet about behavioral therapy. 🐶" },
-  { emoji: "🍖", question: "How often should I feed my pet?",   answer: "Adult dogs typically need 2 meals a day. Adult cats do well with 2-3 small meals. Puppies and kittens need 3-4 meals daily. Always follow the portion guide on your pet food packaging based on their weight. 🍖" },
-  { emoji: "🏥", question: "When should I visit the vet?",      answer: "Visit the vet if your pet shows: loss of appetite for 2+ days, vomiting or diarrhea, lethargy, difficulty breathing, or any sudden behavior change. Annual checkups are also recommended for all pets. 🏥" },
+  { emoji: "😿", question: "Why is my cat meowing so much?" },
+  { emoji: "😰", question: "My dog seems anxious, what should I do?" },
+  { emoji: "🍖", question: "How often should I feed my pet?" },
+  { emoji: "🏥", question: "When should I visit the vet?" },
+  { emoji: "😴", question: "Why is my pet sleeping so much?" },
+  { emoji: "🎾", question: "How do I keep my pet entertained?" },
+  { emoji: "🛁", question: "How often should I groom my pet?" },
+  { emoji: "💊", question: "What vaccines does my pet need?" },
 ];
 
 const formatTime = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -156,7 +160,7 @@ export default function ChatbotScreen({ navigation }) {
 
   const [messages, setMessages] = useState([{
     id: "0",
-    text: `Hi there! I'm PoofieAI 🐾\n\nI'm your personal pet care assistant. Ask me anything about ${petName ? petName + "'s" : "your pet's"} behavior, health, or emotions!`,
+    text: `Hi there! I'm PoofieAI 🐾\n\nI'm your personal pet care assistant. Ask me anything about ${petName ? petName + "'s" : "your pet's"} behavior, health, nutrition, or emotions — I'm here to help!`,
     sender: "bot",
     time: formatTime(),
   }]);
@@ -191,12 +195,10 @@ export default function ChatbotScreen({ navigation }) {
     const msg = (text || input).trim();
     if (!msg) return;
     const userMsg = { id: Date.now().toString(), text: msg, sender: "user", time: formatTime() };
-    // Capture history BEFORE adding the new user message
     setMessages(prev => {
       const updated = [...prev, userMsg];
-      // Fire the API call with full history (prev = everything before this message)
       setIsTyping(true);
-      chatAPI.sendMessage(msg, petType, petBreed, prev).then(res => {
+      chatAPI.sendMessage(msg, petType, petBreed, prev, petName).then(res => {
         const reply = res.reply || "I'm not sure about that. Please consult a vet.";
         setMessages(curr => [...curr, { id: (Date.now() + 1).toString(), text: reply, sender: "bot", time: formatTime() }]);
       }).catch(() => {
@@ -207,7 +209,7 @@ export default function ChatbotScreen({ navigation }) {
       return updated;
     });
     setInput("");
-  }, [input, petType, petBreed]);
+  }, [input, petType, petBreed, petName]);
 
   // Stable renderItem — only re-creates when nothing changes
   const renderItem = useCallback(({ item }) => <MessageRow item={item} />, []);
@@ -294,11 +296,7 @@ export default function ChatbotScreen({ navigation }) {
                     <TouchableOpacity
                       style={styles.suggestionChip}
                       activeOpacity={0.8}
-                      onPress={() => {
-                        const userMsg = { id: Date.now().toString(), text: item.question, sender: "user", time: formatTime() };
-                        const botMsg  = { id: (Date.now() + 1).toString(), text: item.answer, sender: "bot", time: formatTime() };
-                        setMessages(prev => [...prev, userMsg, botMsg]);
-                      }}
+                      onPress={() => sendMessage(item.question)}
                     >
                       <Text style={styles.suggestionEmoji}>{item.emoji}</Text>
                       <Text style={styles.suggestionText}>{item.question}</Text>
