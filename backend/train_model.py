@@ -24,10 +24,10 @@ N_MFCC    = 40
 N_MELS    = 128
 HOP       = 512
 N_FFT     = 2048
-EPOCHS    = 150
+EPOCHS    = 250
 BATCH     = 32
-LR        = 5e-4
-AUGMENT   = 8   # augmentation multiplier for real audio
+LR        = 3e-4
+AUGMENT   = 16  # doubled augmentation for higher confidence
 
 SPECIES  = ["cat", "dog", "bird"]
 EMOTIONS = [
@@ -172,25 +172,41 @@ def augment_audio(y: np.ndarray, n: int = AUGMENT) -> list:
         aug = y.copy()
 
         # Random noise
-        if rng.random() > 0.3:
-            aug = aug + rng.normal(0, rng.uniform(0.005, 0.03), len(aug)).astype(np.float32)
+        if rng.random() > 0.2:
+            aug = aug + rng.normal(0, rng.uniform(0.003, 0.04), len(aug)).astype(np.float32)
 
         # Random gain
-        aug = aug * rng.uniform(0.6, 1.4)
+        aug = aug * rng.uniform(0.5, 1.5)
 
         # Time stretch
-        if rng.random() > 0.5:
+        if rng.random() > 0.4:
             try:
-                rate = rng.uniform(0.85, 1.15)
+                rate = rng.uniform(0.80, 1.20)
                 aug = librosa.effects.time_stretch(aug, rate=rate)
             except Exception:
                 pass
 
         # Pitch shift
-        if rng.random() > 0.5:
+        if rng.random() > 0.4:
             try:
-                steps = rng.uniform(-3, 3)
+                steps = rng.uniform(-4, 4)
                 aug = librosa.effects.pitch_shift(aug, sr=SR, n_steps=steps)
+            except Exception:
+                pass
+
+        # Random time shift
+        if rng.random() > 0.5:
+            shift = int(rng.uniform(-SR * 0.5, SR * 0.5))
+            aug = np.roll(aug, shift)
+
+        # Random frequency masking via bandpass
+        if rng.random() > 0.6:
+            try:
+                from scipy.signal import butter, filtfilt
+                lo = rng.uniform(100, 500)
+                hi = rng.uniform(2000, 7000)
+                b, a = butter(2, [lo / (SR / 2), hi / (SR / 2)], btype='band')
+                aug = filtfilt(b, a, aug).astype(np.float32)
             except Exception:
                 pass
 
@@ -340,9 +356,10 @@ def train(X, ys, ye):
         def __init__(self):
             super().__init__()
             self.shared = nn.Sequential(
-                nn.Linear(dim, 512), nn.BatchNorm1d(512), nn.GELU(), nn.Dropout(0.3),
-                nn.Linear(512, 256), nn.BatchNorm1d(256), nn.GELU(), nn.Dropout(0.25),
-                nn.Linear(256, 128), nn.BatchNorm1d(128), nn.GELU(), nn.Dropout(0.2),
+                nn.Linear(dim, 1024), nn.BatchNorm1d(1024), nn.GELU(), nn.Dropout(0.3),
+                nn.Linear(1024, 512), nn.BatchNorm1d(512), nn.GELU(), nn.Dropout(0.25),
+                nn.Linear(512, 256), nn.BatchNorm1d(256), nn.GELU(), nn.Dropout(0.2),
+                nn.Linear(256, 128), nn.BatchNorm1d(128), nn.GELU(), nn.Dropout(0.15),
                 nn.Linear(128, 64),  nn.GELU(),
             )
             self.sp_head = nn.Linear(64, len(SPECIES))
